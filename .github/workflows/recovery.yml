@@ -26,7 +26,7 @@ jobs:
         pwd
         wget ${{ github.event.inputs.RECOVERY_URL }} -O recovery.img
 
-        - name: Patch Process-1
+   - name: Patch Process-1
       run: |
         chmod a+x script1.sh
         chmod a+x magiskboot
