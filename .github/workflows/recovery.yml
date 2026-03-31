@@ -26,11 +26,14 @@ jobs:
         pwd
         wget ${{ github.event.inputs.RECOVERY_URL }} -O recovery.img
 
-    - name: Patch Process-1
+        - name: Patch Process-1
       run: |
         chmod a+x script1.sh
         chmod a+x magiskboot
+        # Force Magisk to use high compression (lz4 or gzip)
+        export MAGISK_COMPRESSION="lz4" 
         ./script1.sh recovery.img || true
+
 
     - name: Patch Process-2
       run: |
