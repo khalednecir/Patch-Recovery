@@ -23,7 +23,6 @@ jobs:
 
     - name: Fetch image from URL
       run: |
-        # Use -L to follow redirects from hosts like Catbox
         wget -L "${{ github.event.inputs.RECOVERY_URL }}" -O recovery.img
         if [ ! -f recovery.img ]; then echo "Download failed"; exit 1; fi
 
@@ -31,28 +30,27 @@ jobs:
       run: |
         chmod a+x script1.sh
         chmod a+x magiskboot
-        # Force LZ4 compression to keep size within partition limits
-        export MAGISK_COMPRESSION="lz4"
         ./script1.sh recovery.img || true
 
-     - name: Patch Process-2
+    - name: Patch Process-2
       run: |
         chmod a+x script2.sh
         ./script2.sh || true
         
-        # Check if patching worked
-        if [ ! -f r-patched.img ]; then echo "Patching failed"; exit 1; fi
+        # Check if patching actually produced an image
+        if [ ! -f r-patched.img ]; then echo "Error: r-patched.img not found. Patching failed."; exit 1; fi
 
-        # RE-COMPRESS the image to fit the 39MB partition
-        # We rename the bloated image and create a compressed version
+        # COMPRESSION STEP: Shrink the 63MB image to fit the 39MB partition
+        # This is critical for Samsung Android 14 devices
         mv r-patched.img bloated.img
         lz4 -9 -f bloated.img r-patched.img
+        rm bloated.img
 
         # Calculate aligned partition size (multiple of 4096)
         ORIGINAL_SIZE=$(wc -c < recovery.img)
         ALIGNED_SIZE=$(( ($ORIGINAL_SIZE + 4095) / 4096 * 4096 ))
         
-        # Now avbtool will see the smaller compressed file
+        # Sign the image with avbtool
         python3 avbtool extract_public_key --key phh.pem --output phh.pub.bin
         python3 avbtool add_hash_footer \
           --partition_name recovery \
@@ -61,6 +59,7 @@ jobs:
           --key phh.pem \
           --algorithm SHA256_RSA4096
         
+        # Prepare for upload
         mkdir output
         mv r-patched.img output/recovery.img
         cd output
@@ -73,11 +72,3 @@ jobs:
       with:
         name: Patched-Recovery-F23
         path: output/fastbootd-recovery.tar.md5
-
-    - name: Upload to Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: output/*.md5
-        name: Patched-Recovery
-        tag_name: ${{ github.run_id }}
